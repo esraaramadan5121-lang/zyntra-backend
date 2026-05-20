@@ -11,7 +11,11 @@ const app = express();
 // ✅ Middleware
 app.use(express.json());
 app.use(cors({
-  origin: "http://localhost:3000", // السماح للفرونت إند يتصل بالباك إند
+  origin: [
+    "http://localhost:3000",                // أثناء التطوير المحلي
+    "https://zyntra-project.vercel.app"     // رابط الفرونت إند على Vercel
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
 
@@ -30,7 +34,7 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/blog', blogRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/audit-logs', auditLogsRouter);
-app.use('/api/upload', require('./routes/upload'))
+app.use('/api/upload', require('./routes/upload'));
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
