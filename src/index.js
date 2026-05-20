@@ -10,17 +10,14 @@ const app = express();
 
 // ✅ Middleware
 app.use(express.json());
-
-// ✅ إعداد CORS الصحيح
 app.use(cors({
   origin: [
-    "http://localhost:3000",                // أثناء التطوير المحلي
-    "https://zyntra.vercel.app"     // رابط الفرونت إند على Vercel
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+    'http://localhost:3000',
+    'https://zyntra-project.vercel.app',
+    process.env.CLIENT_URL
+  ].filter(Boolean),
   credentials: true
-}));
+}))
 
 // ✅ معالجة طلبات preflight (OPTIONS)
 app.options('*', cors());
