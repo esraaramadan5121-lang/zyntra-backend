@@ -8,19 +8,12 @@ connectDB()
 
 const app = express()
 
-const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'https://zyntra-project.vercel.app',
-    process.env.CLIENT_URL
-  ].filter(Boolean),
-  credentials: true,
+app.use(cors({
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}
-
-app.use(cors(corsOptions))
-app.options('*', cors(corsOptions))
+}))
+app.options('*', cors())
 app.use(express.json())
 
 const authRouter = require('./routes/auth')
