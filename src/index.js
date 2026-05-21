@@ -13,6 +13,7 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://zyntra-project.vercel.app',
+    'https://zyntra.ltd', // الدومين الجديد
     process.env.CLIENT_URL
   ].filter(Boolean),
   credentials: true,
@@ -25,7 +26,7 @@ app.options('*', cors());
 
 // ✅ إضافة هيدر يدويًا للتأكد من الرد
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://zyntra-project.vercel.app');
+  res.header('Access-Control-Allow-Origin', 'https://zyntra.ltd');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
