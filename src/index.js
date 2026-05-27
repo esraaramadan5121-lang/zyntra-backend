@@ -8,12 +8,11 @@ connectDB();
 
 const app = express();
 
-// ✅ Middleware
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://zyntra-project.vercel.app',
-    'https://zyntra.ltd', // الدومين الجديد
+    'https://zyntra.ltd',
+    'https://www.zyntra.ltd',
     process.env.CLIENT_URL
   ].filter(Boolean),
   credentials: true,
@@ -21,21 +20,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type','Authorization']
 }));
 
-// ✅ معالجة طلبات preflight (OPTIONS)
 app.options('*', cors());
-
-// ✅ إضافة هيدر يدويًا للتأكد من الرد
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://zyntra.ltd');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-});
-
 app.use(express.json());
 
-// ✅ Routes
 const authRouter = require('./routes/auth');
 const servicesRouter = require('./routes/services');
 const projectsRouter = require('./routes/projects');
@@ -52,6 +39,5 @@ app.use('/api/messages', messagesRouter);
 app.use('/api/audit-logs', auditLogsRouter);
 app.use('/api/upload', require('./routes/upload'));
 
-// ✅ Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
