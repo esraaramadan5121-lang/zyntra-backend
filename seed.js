@@ -2,40 +2,54 @@ require('dotenv').config()
 const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{12,}$/
+
 async function seed() {
+  const email = process.env.ADMIN_EMAIL_LOGIN
+  const password = process.env.ADMIN_PASSWORD
+
+  if (!email || !password) {
+    console.error('❌ ADMIN_EMAIL_LOGIN and ADMIN_PASSWORD must be set in .env')
+    process.exit(1)
+  }
+
+  if (!PASSWORD_REGEX.test(password)) {
+    console.error('❌ ADMIN_PASSWORD must be at least 12 characters and include uppercase, lowercase, number, and special character')
+    process.exit(1)
+  }
+
   console.log('Connecting to MongoDB...')
   console.log('URI:', process.env.MONGODB_URI ? 'Found ✅' : 'NOT FOUND ❌')
-  
+
   await mongoose.connect(process.env.MONGODB_URI)
   console.log('Connected! ✅')
 
+  // Inline schema to avoid importing the full model (which may not exist yet at seed time)
   const userSchema = new mongoose.Schema({
-    name: String,
-    email: { type: String, unique: true },
-    password: String,
-    role: String,
+    name:          String,
+    email:         { type: String, unique: true },
+    password:      String,
+    role:          String,
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil:     { type: Date },
+    lastLogin:     { type: Date },
+    refreshToken:  { type: String },
   }, { timestamps: true })
 
   const User = mongoose.models.User || mongoose.model('User', userSchema)
 
-  const exists = await User.findOne({ email: 'admin@zyntra.com' })
+  const exists = await User.findOne({ email })
   if (exists) {
     console.log('Admin already exists! ✅')
     await mongoose.disconnect()
     return
   }
 
-  const hashed = await bcrypt.hash('admin123456', 12)
-  await User.create({
-    name: 'ZYNTRA Admin',
-    email: 'admin@zyntra.com',
-    password: hashed,
-    role: 'admin'
-  })
+  const hashed = await bcrypt.hash(password, 12)
+  await User.create({ name: 'ZYNTRA Admin', email, password: hashed, role: 'admin' })
 
   console.log('✅ Admin created!')
-  console.log('Email: admin@zyntra.com')
-  console.log('Password: admin123456')
+  console.log(`Email: ${email}`)
   await mongoose.disconnect()
 }
 

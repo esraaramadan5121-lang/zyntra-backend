@@ -6,6 +6,7 @@ const ServiceSchema = new mongoose.Schema({
   icon:        { type: String, default: '' },
   status:      { type: String, enum: ['active', 'inactive'], default: 'active' },
   order:       { type: Number, default: 0 },
+  features:    [{ type: String }],
 }, { timestamps: true })
 
 module.exports = mongoose.model('Service', ServiceSchema)

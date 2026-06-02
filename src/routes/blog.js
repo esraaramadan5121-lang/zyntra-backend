@@ -1,21 +1,43 @@
 const router = require('express').Router()
+const { body } = require('express-validator')
 const Blog = require('../models/Blog')
-const { protect } = require('../middleware/auth')
+const { protect, logAction } = require('../middleware/auth')
+const { handleValidation } = require('../middleware/validate')
+const paginate = require('../middleware/paginate')
 
-// Public - get all published
+const blogValidation = [
+  body('title').trim().notEmpty().withMessage('Title is required'),
+  body('content').trim().notEmpty().withMessage('Content is required'),
+  body('excerpt').optional().trim(),
+  body('category').optional().trim(),
+  body('status').optional().isIn(['published', 'draft']).withMessage('Invalid status'),
+  body('author').optional().trim(),
+  body('metaTitle').optional().trim(),
+  body('metaDescription').optional().trim(),
+  body('metaKeywords').optional().trim(),
+]
+
+// Public: paginated published posts (default 9 per page for blog grid)
 router.get('/', async (req, res) => {
   try {
     const { category, tag, search } = req.query
-    let filter = { status: 'published' }
+    const filter = { status: 'published' }
     if (category) filter.category = category
     if (tag) filter.tags = { $in: [tag] }
-    if (search) filter.title = { $regex: search, $options: 'i' }
-    const posts = await Blog.find(filter).sort({ createdAt: -1 })
-    res.json({ success: true, data: posts })
+    if (search) {
+      const re = new RegExp(search, 'i')
+      filter.$or = [{ title: re }, { excerpt: re }]
+    }
+    const { page, limit, skip } = paginate(req, 9)
+    const [total, posts] = await Promise.all([
+      Blog.countDocuments(filter),
+      Blog.find(filter, '-content').sort({ createdAt: -1 }).skip(skip).limit(limit),
+    ])
+    res.json({ success: true, data: posts, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
-// Public - get by slug
+// Public: single post by slug (full content)
 router.get('/slug/:slug', async (req, res) => {
   try {
     const post = await Blog.findOne({ slug: req.params.slug, status: 'published' })
@@ -24,34 +46,47 @@ router.get('/slug/:slug', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
-// Admin - get all (including drafts)
+// Admin: all posts including drafts (paginated)
 router.get('/admin/all', protect, async (req, res) => {
   try {
-    const posts = await Blog.find().sort({ createdAt: -1 })
-    res.json({ success: true, data: posts })
+    const { category, status, search } = req.query
+    const filter = {}
+    if (category) filter.category = category
+    if (status) filter.status = status
+    if (search) filter.title = { $regex: search, $options: 'i' }
+    const { page, limit, skip } = paginate(req)
+    const [total, posts] = await Promise.all([
+      Blog.countDocuments(filter),
+      Blog.find(filter, '-content').sort({ createdAt: -1 }).skip(skip).limit(limit),
+    ])
+    res.json({ success: true, data: posts, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
-// Create
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, blogValidation, async (req, res) => {
+  if (handleValidation(req, res)) return
   try {
     const post = await Blog.create(req.body)
+    await logAction(req.user.id, 'create', 'Blog', post._id.toString(), post.title)
     res.status(201).json({ success: true, data: post })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
-// Update
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, blogValidation, async (req, res) => {
+  if (handleValidation(req, res)) return
   try {
-    const post = await Blog.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    const post = await Blog.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    if (!post) return res.status(404).json({ success: false, message: 'Not found' })
+    await logAction(req.user.id, 'update', 'Blog', req.params.id, post.title)
     res.json({ success: true, data: post })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
-// Delete
 router.delete('/:id', protect, async (req, res) => {
   try {
-    await Blog.findByIdAndDelete(req.params.id)
+    const post = await Blog.findByIdAndDelete(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Not found' })
+    await logAction(req.user.id, 'delete', 'Blog', req.params.id, post.title)
     res.json({ success: true, message: 'Deleted' })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
