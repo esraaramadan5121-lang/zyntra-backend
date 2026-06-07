@@ -2,6 +2,7 @@ const express = require('express')
 const dotenv = require('dotenv')
 const cors = require('cors')
 const helmet = require('helmet')
+const crypto = require('crypto')
 const rateLimit = require('express-rate-limit')
 const connectDB = require('./config/db')
 const requestLogger = require('./middleware/requestLogger')
@@ -12,7 +13,20 @@ connectDB()
 const app = express()
 
 // Security headers
-app.use(helmet())
+app.use(helmet({
+  frameguard:       { action: 'deny' },
+  noSniff:          true,
+  xssFilter:        true,
+  hidePoweredBy:    true,
+  hsts:             { maxAge: 31536000, includeSubDomains: true },
+}))
+
+// Attach unique request ID to every response for traceability
+app.use((req, res, next) => {
+  req.id = crypto.randomUUID()
+  res.setHeader('X-Request-Id', req.id)
+  next()
+})
 
 // Global rate limit: 100 requests per 15 minutes per IP
 app.use(rateLimit({
@@ -63,9 +77,13 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${err.stack || err.message}`)
+  console.error(`[ERROR] [${req.id}] ${err.stack || err.message}`)
   const status = err.statusCode || err.status || 500
-  res.status(status).json({ success: false, message: err.message || 'Internal server error' })
+  // Hide implementation details from clients in production
+  const message = process.env.NODE_ENV === 'production' && status === 500
+    ? 'Internal server error'
+    : err.message || 'Internal server error'
+  res.status(status).json({ success: false, message })
 })
 
 const PORT = process.env.PORT || 5000

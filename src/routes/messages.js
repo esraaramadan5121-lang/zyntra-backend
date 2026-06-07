@@ -8,8 +8,13 @@ const { handleValidation } = require('../middleware/validate')
 const { sendContactNotification } = require('../utils/mailer')
 const paginate = require('../middleware/paginate')
 
+// Only allow plain strings from query params (prevents NoSQL operator injection)
+const safeStr = (val) => (typeof val === 'string' ? val : undefined)
+
+const MESSAGE_STATUS = ['new', 'read', 'replied']
+
 const messageRateLimit = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
@@ -17,33 +22,34 @@ const messageRateLimit = rateLimit({
 })
 
 const messageValidation = [
-  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('name').trim().notEmpty().withMessage('Name is required').isLength({ max: 100 }).withMessage('Name too long'),
   body('email').isEmail().withMessage('Valid email required').normalizeEmail(),
-  body('phone').optional().trim(),
-  body('subject').optional().trim(),
-  body('message').trim().notEmpty().withMessage('Message is required'),
+  body('phone').optional().trim().isLength({ max: 30 }).withMessage('Phone too long'),
+  body('subject').optional().trim().isLength({ max: 200 }).withMessage('Subject too long'),
+  body('message').trim().notEmpty().withMessage('Message is required').isLength({ max: 2000 }).withMessage('Message too long (max 2000 chars)'),
 ]
 
 router.post('/', messageRateLimit, messageValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
-    const message = await Message.create(req.body)
-    await sendContactNotification(message)
+    // Explicit field pick — never pass req.body directly to prevent status/field injection
+    const { name, email, phone, subject, message } = req.body
+    const doc = await Message.create({ name, email, phone, subject, message })
+    await sendContactNotification(doc)
 
-    // Auto-create CRM contact on first contact form submission from this email
-    const existing = await Contact.findOne({ email: message.email })
+    const existing = await Contact.findOne({ email: doc.email })
     if (!existing) {
       await Contact.create({
-        name: message.name,
-        email: message.email,
-        phone: message.phone || '',
+        name: doc.name,
+        email: doc.email,
+        phone: doc.phone || '',
         source: 'website',
         status: 'new',
-        notes: message.subject ? `Via contact form: ${message.subject}` : 'Via contact form',
+        notes: doc.subject ? `Via contact form: ${doc.subject}` : 'Via contact form',
       })
     }
 
-    res.status(201).json({ success: true, data: message })
+    res.status(201).json({ success: true, data: doc })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -51,8 +57,8 @@ router.post('/', messageRateLimit, messageValidation, async (req, res) => {
 
 router.get('/', protect, async (req, res) => {
   try {
-    const { status } = req.query
-    const filter = status ? { status } : {}
+    const status = safeStr(req.query.status)
+    const filter = (status && MESSAGE_STATUS.includes(status)) ? { status } : {}
     const { page, limit, skip } = paginate(req)
     const [total, messages] = await Promise.all([
       Message.countDocuments(filter),
@@ -63,7 +69,7 @@ router.get('/', protect, async (req, res) => {
 })
 
 router.put('/:id', protect, [
-  body('status').isIn(['new', 'read', 'replied']).withMessage('Invalid status value'),
+  body('status').isIn(MESSAGE_STATUS).withMessage('Invalid status value'),
 ], async (req, res) => {
   if (handleValidation(req, res)) return
   try {

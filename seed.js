@@ -2,6 +2,11 @@ require('dotenv').config()
 const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('❌ Seed script cannot run in production')
+  process.exit(1)
+}
+
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{12,}$/
 
 async function seed() {
@@ -24,7 +29,6 @@ async function seed() {
   await mongoose.connect(process.env.MONGODB_URI)
   console.log('Connected! ✅')
 
-  // Inline schema to avoid importing the full model (which may not exist yet at seed time)
   const userSchema = new mongoose.Schema({
     name:          String,
     email:         { type: String, unique: true },
