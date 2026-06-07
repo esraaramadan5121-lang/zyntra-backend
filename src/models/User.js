@@ -5,14 +5,21 @@ const MAX_LOGIN_ATTEMPTS = 5
 const LOCK_TIME = 30 * 60 * 1000 // 30 minutes in ms
 
 const UserSchema = new mongoose.Schema({
-  name:          { type: String, required: true },
-  email:         { type: String, required: true, unique: true, lowercase: true },
-  password:      { type: String, required: true, minlength: 12 },
-  role:          { type: String, default: 'admin' },
-  loginAttempts: { type: Number, default: 0 },
-  lockUntil:     { type: Date },
-  lastLogin:     { type: Date },
-  refreshToken:  { type: String },
+  name:           { type: String, required: true },
+  email:          { type: String, required: true, unique: true, lowercase: true },
+  password:       { type: String, required: true, minlength: 12 },
+  role:           { type: String, default: 'admin' },
+  phone:          { type: String, sparse: true, unique: true },
+  companyName:    { type: String },
+  companyEmail:   { type: String },
+  companyPhone:   { type: String },
+  companyAddress: { type: String },
+  companyLogo:    { type: String },
+  companyWebsite: { type: String },
+  loginAttempts:  { type: Number, default: 0 },
+  lockUntil:      { type: Date },
+  lastLogin:      { type: Date },
+  refreshToken:   { type: String },
 }, { timestamps: true })
 
 UserSchema.pre('save', async function(next) {

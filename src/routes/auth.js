@@ -74,17 +74,20 @@ router.post('/register', protect, [
 })
 
 router.post('/login', loginLimiter, [
-  body('email').isEmail().withMessage('Valid email required').normalizeEmail(),
+  body('email').notEmpty().withMessage('Email or phone is required'),
   body('password').notEmpty().withMessage('Password is required'),
 ], async (req, res) => {
   if (handleValidation(req, res)) return
   const ip = req.ip || req.socket?.remoteAddress || 'unknown'
   try {
-    const { email, password } = req.body
-    const user = await User.findOne({ email })
+    const { email: emailOrPhone, password } = req.body
+    const isEmail = emailOrPhone.includes('@')
+    const user = isEmail
+      ? await User.findOne({ email: emailOrPhone.toLowerCase().trim() })
+      : await User.findOne({ phone: emailOrPhone.trim() })
 
     if (!user) {
-      await logLoginAttempt(null, false, ip, `Email not found: ${email}`)
+      await logLoginAttempt(null, false, ip, `Credential not found: ${emailOrPhone}`)
       return res.status(401).json({ success: false, message: 'Invalid credentials' })
     }
 
