@@ -51,6 +51,7 @@ app.use('/api/audit-logs', require('./routes/auditLogs'))
 app.use('/api/upload',     require('./routes/upload'))
 app.use('/api/careers',    require('./routes/careers'))
 app.use('/api/search',     require('./routes/search'))
+app.use('/api/settings',   require('./routes/settings'))
 
 // CRM namespace — contacts, deals, pipeline all under /api/crm
 app.use('/api/crm', require('./routes/crm'))
