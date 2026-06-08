@@ -10,7 +10,7 @@ const paginate = require('../middleware/paginate')
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const safeStr = (val) => (typeof val === 'string' ? val : undefined)
 
-const BLOG_STATUSES = ['draft', 'pending_review', 'approved', 'published', 'rejected', 'archived']
+const BLOG_STATUSES = ['draft', 'pending_review', 'approved', 'published', 'rejected', 'archived', 'scheduled']
 
 const notifyByRole = async (roles, type, message, entityId) => {
   try {
@@ -133,6 +133,59 @@ router.delete('/:id', protect, async (req, res) => {
     if (!post) return res.status(404).json({ success: false, message: 'Not found' })
     await logAction(req.user.id, 'delete', 'Blog', req.params.id, post.title)
     res.json({ success: true, message: 'Deleted' })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// GET /scheduled — admin view of all scheduled posts
+router.get('/scheduled', protect, async (req, res) => {
+  if (!['admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Admin required' })
+  }
+  try {
+    const posts = await Blog.find({ status: 'scheduled' }, '-content').sort({ scheduledAt: 1 })
+    res.json({ success: true, data: posts })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// PUT /:id/schedule
+router.put('/:id/schedule', protect, async (req, res) => {
+  if (!['admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Admin required' })
+  }
+  if (!req.body.scheduledAt) {
+    return res.status(422).json({ success: false, message: 'scheduledAt is required' })
+  }
+  const scheduledAt = new Date(req.body.scheduledAt)
+  if (isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+    return res.status(422).json({ success: false, message: 'scheduledAt must be a future date' })
+  }
+  try {
+    const post = await Blog.findById(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' })
+    post.status = 'scheduled'
+    post.scheduledAt = scheduledAt
+    await post.save()
+    await logAction(req.user.id, 'SCHEDULE', 'Blog', post._id.toString(), post.title)
+    res.json({ success: true, data: post })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// PUT /:id/unschedule
+router.put('/:id/unschedule', protect, async (req, res) => {
+  if (!['admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Admin required' })
+  }
+  try {
+    const post = await Blog.findById(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' })
+    if (post.status !== 'scheduled') {
+      return res.status(400).json({ success: false, message: 'Post is not scheduled' })
+    }
+    post.status = 'draft'
+    post.scheduledAt = null
+    await post.save()
+    await logAction(req.user.id, 'UNSCHEDULE', 'Blog', post._id.toString(), post.title)
+    res.json({ success: true, data: post })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 

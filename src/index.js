@@ -9,6 +9,7 @@ const requestLogger = require('./middleware/requestLogger')
 
 dotenv.config()
 connectDB()
+require('./jobs/scheduler')
 
 const app = express()
 
