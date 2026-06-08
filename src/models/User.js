@@ -21,6 +21,7 @@ const UserSchema = new mongoose.Schema({
   lockUntil:      { type: Date },
   lastLogin:      { type: Date },
   refreshToken:   { type: String },
+  permissions:    [{ type: String }],
 }, { timestamps: true })
 
 UserSchema.pre('save', async function(next) {

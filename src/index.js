@@ -74,7 +74,8 @@ app.use('/api/notifications', require('./routes/notifications'))
 app.use('/api/media',         require('./routes/media'))
 
 // CRM namespace — contacts, deals, pipeline all under /api/crm
-app.use('/api/crm', require('./routes/crm'))
+app.use('/api/crm',   require('./routes/crm'))
+app.use('/api/roles', require('./routes/roles'))
 
 // ─── Error handlers ──────────────────────────────────────────────────────────
 app.use((req, res) => {
