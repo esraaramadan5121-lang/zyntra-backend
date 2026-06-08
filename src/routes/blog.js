@@ -21,6 +21,9 @@ const blogValidation = [
   body('metaTitle').optional().trim().isLength({ max: 200 }),
   body('metaDescription').optional().trim().isLength({ max: 500 }),
   body('metaKeywords').optional().trim().isLength({ max: 300 }),
+  body('canonicalUrl').optional().trim().isLength({ max: 500 }),
+  body('structuredData').optional().trim(),
+  body('ogImage').optional().trim().isLength({ max: 500 }),
   body('tags').optional().isArray().withMessage('Tags must be an array'),
   body('tagIds').optional().isArray().withMessage('tagIds must be an array'),
 ]
@@ -82,11 +85,12 @@ router.post('/', protect, blogValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
     const { title, content, excerpt, coverImage, category, categoryId, tags, tagIds, status, author,
-            metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } = req.body
+            metaTitle, metaDescription, metaKeywords, canonicalUrl, structuredData, ogImage, featuredImage } = req.body
     const post = await Blog.create({
       title, content, excerpt, coverImage, category, categoryId: categoryId || null,
       tags, tagIds: Array.isArray(tagIds) ? tagIds : [],
-      status, author, metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage,
+      status, author, metaTitle, metaDescription, metaKeywords,
+      canonicalUrl, structuredData, ogImage, featuredImage,
     })
     await logAction(req.user.id, 'create', 'Blog', post._id.toString(), post.title)
     res.status(201).json({ success: true, data: post })
@@ -97,12 +101,13 @@ router.put('/:id', protect, blogValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
     const { title, content, excerpt, coverImage, category, categoryId, tags, tagIds, status, author,
-            metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } = req.body
+            metaTitle, metaDescription, metaKeywords, canonicalUrl, structuredData, ogImage, featuredImage } = req.body
     const post = await Blog.findByIdAndUpdate(
       req.params.id,
       { $set: { title, content, excerpt, coverImage, category, categoryId: categoryId || null,
                 tags, tagIds: Array.isArray(tagIds) ? tagIds : [],
-                status, author, metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } },
+                status, author, metaTitle, metaDescription, metaKeywords,
+                canonicalUrl, structuredData, ogImage, featuredImage } },
       { new: true, runValidators: true },
     )
     if (!post) return res.status(404).json({ success: false, message: 'Not found' })

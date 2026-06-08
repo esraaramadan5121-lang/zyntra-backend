@@ -16,6 +16,8 @@ const BlogSchema = new mongoose.Schema({
   metaDescription: { type: String, default: '' },
   metaKeywords:    { type: String, default: '' },
   canonicalUrl:    { type: String, default: '' },
+  structuredData:  { type: String, default: '' },
+  ogImage:         { type: String, default: '' },
   featuredImage:   { type: String, default: '' },
 }, { timestamps: true })
 
