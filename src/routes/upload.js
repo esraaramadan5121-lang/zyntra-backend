@@ -2,10 +2,11 @@ const router = require('express').Router()
 const rateLimit = require('express-rate-limit')
 const { upload, uploadToCloudinary } = require('../config/cloudinary')
 const { protect } = require('../middleware/auth')
+const Media = require('../models/Media')
 
 const uploadLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,
+  windowMs: 60 * 60 * 1000,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many uploads. Please try again later.' },
@@ -30,7 +31,18 @@ router.post('/', protect, uploadLimiter, (req, res) => {
     }
     try {
       const result = await uploadToCloudinary(req.file)
-      res.json({ success: true, url: result.secure_url })
+      const media = await Media.create({
+        filename:     result.public_id,
+        originalName: req.file.originalname,
+        url:          result.secure_url,
+        publicId:     result.public_id,
+        size:         result.bytes || req.file.size || 0,
+        mimeType:     req.file.mimetype,
+        width:        result.width  || 0,
+        height:       result.height || 0,
+        uploadedBy:   req.user?.id || null,
+      })
+      res.json({ success: true, url: result.secure_url, data: media })
     } catch {
       res.status(500).json({ success: false, message: 'Upload failed. Please try again.' })
     }

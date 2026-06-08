@@ -7,7 +7,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 
 const upload = multer({
@@ -25,7 +25,7 @@ const uploadToCloudinary = async (file) => {
   const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`
   return cloudinary.uploader.upload(dataUri, {
     folder: 'zyntra',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
     resource_type: 'image',
   })
 }
