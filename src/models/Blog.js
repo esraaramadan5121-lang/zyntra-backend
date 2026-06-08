@@ -9,6 +9,7 @@ const BlogSchema = new mongoose.Schema({
   category:        { type: String, default: 'General' },
   categoryId:      { type: require('mongoose').Schema.Types.ObjectId, ref: 'Category', default: null },
   tags:            [{ type: String }],
+  tagIds:          [{ type: require('mongoose').Schema.Types.ObjectId, ref: 'Tag' }],
   status:          { type: String, enum: ['published', 'draft'], default: 'draft' },
   author:          { type: String, default: 'ZYNTRA Team' },
   metaTitle:       { type: String, default: '' },

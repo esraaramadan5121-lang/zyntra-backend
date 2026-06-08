@@ -22,6 +22,7 @@ const blogValidation = [
   body('metaDescription').optional().trim().isLength({ max: 500 }),
   body('metaKeywords').optional().trim().isLength({ max: 300 }),
   body('tags').optional().isArray().withMessage('Tags must be an array'),
+  body('tagIds').optional().isArray().withMessage('tagIds must be an array'),
 ]
 
 // Public: paginated published posts
@@ -80,11 +81,12 @@ router.get('/admin/all', protect, async (req, res) => {
 router.post('/', protect, blogValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
-    const { title, content, excerpt, coverImage, category, categoryId, tags, status, author,
+    const { title, content, excerpt, coverImage, category, categoryId, tags, tagIds, status, author,
             metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } = req.body
     const post = await Blog.create({
-      title, content, excerpt, coverImage, category, categoryId: categoryId || null, tags, status, author,
-      metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage,
+      title, content, excerpt, coverImage, category, categoryId: categoryId || null,
+      tags, tagIds: Array.isArray(tagIds) ? tagIds : [],
+      status, author, metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage,
     })
     await logAction(req.user.id, 'create', 'Blog', post._id.toString(), post.title)
     res.status(201).json({ success: true, data: post })
@@ -94,12 +96,13 @@ router.post('/', protect, blogValidation, async (req, res) => {
 router.put('/:id', protect, blogValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
-    const { title, content, excerpt, coverImage, category, categoryId, tags, status, author,
+    const { title, content, excerpt, coverImage, category, categoryId, tags, tagIds, status, author,
             metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } = req.body
     const post = await Blog.findByIdAndUpdate(
       req.params.id,
-      { $set: { title, content, excerpt, coverImage, category, categoryId: categoryId || null, tags, status, author,
-                metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } },
+      { $set: { title, content, excerpt, coverImage, category, categoryId: categoryId || null,
+                tags, tagIds: Array.isArray(tagIds) ? tagIds : [],
+                status, author, metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } },
       { new: true, runValidators: true },
     )
     if (!post) return res.status(404).json({ success: false, message: 'Not found' })
