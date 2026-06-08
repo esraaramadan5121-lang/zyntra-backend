@@ -1,6 +1,8 @@
 const router = require('express').Router()
 const { body } = require('express-validator')
 const Blog = require('../models/Blog')
+const User = require('../models/User')
+const Notification = require('../models/Notification')
 const { protect, logAction } = require('../middleware/auth')
 const { handleValidation } = require('../middleware/validate')
 const paginate = require('../middleware/paginate')
@@ -8,7 +10,16 @@ const paginate = require('../middleware/paginate')
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const safeStr = (val) => (typeof val === 'string' ? val : undefined)
 
-const BLOG_STATUSES = ['published', 'draft']
+const BLOG_STATUSES = ['draft', 'pending_review', 'approved', 'published', 'rejected', 'archived']
+
+const notifyByRole = async (roles, type, message, entityId) => {
+  try {
+    const users = await User.find({ role: { $in: roles } }).select('_id')
+    if (users.length) {
+      await Notification.insertMany(users.map(u => ({ userId: u._id, type, message, entityId })))
+    }
+  } catch {}
+}
 
 const blogValidation = [
   body('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 200 }),
@@ -89,7 +100,7 @@ router.post('/', protect, blogValidation, async (req, res) => {
     const post = await Blog.create({
       title, content, excerpt, coverImage, category, categoryId: categoryId || null,
       tags, tagIds: Array.isArray(tagIds) ? tagIds : [],
-      status, author, metaTitle, metaDescription, metaKeywords,
+      status, authorId: req.user.id, author, metaTitle, metaDescription, metaKeywords,
       canonicalUrl, structuredData, ogImage, featuredImage,
     })
     await logAction(req.user.id, 'create', 'Blog', post._id.toString(), post.title)
@@ -122,6 +133,112 @@ router.delete('/:id', protect, async (req, res) => {
     if (!post) return res.status(404).json({ success: false, message: 'Not found' })
     await logAction(req.user.id, 'delete', 'Blog', req.params.id, post.title)
     res.json({ success: true, message: 'Deleted' })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// ─── Workflow ────────────────────────────────────────────────────────────────
+
+// GET /admin/pending — editor/admin view
+router.get('/admin/pending', protect, async (req, res) => {
+  if (!['editor', 'admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Editor or Admin required' })
+  }
+  try {
+    const posts = await Blog.find({ status: 'pending_review' }, '-content').sort({ submittedAt: -1 })
+    res.json({ success: true, data: posts })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// PUT /:id/submit
+router.put('/:id/submit', protect, async (req, res) => {
+  try {
+    const post = await Blog.findById(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' })
+    if (!['draft', 'rejected'].includes(post.status)) {
+      return res.status(400).json({ success: false, message: 'Only draft or rejected articles can be submitted for review' })
+    }
+    post.status = 'pending_review'
+    post.submittedAt = new Date()
+    await post.save()
+    await notifyByRole(['editor', 'admin', 'superadmin'], 'submitted', `New article submitted for review: "${post.title}"`, post._id)
+    await logAction(req.user.id, 'SUBMIT_REVIEW', 'Blog', post._id.toString(), post.title)
+    res.json({ success: true, data: post })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// PUT /:id/approve
+router.put('/:id/approve', protect, async (req, res) => {
+  if (!['editor', 'admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Editor or Admin required' })
+  }
+  try {
+    const post = await Blog.findById(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' })
+    if (post.status !== 'pending_review') {
+      return res.status(400).json({ success: false, message: 'Article must be pending review to approve' })
+    }
+    post.status = 'approved'
+    post.reviewedBy = req.user.id
+    post.reviewedAt = new Date()
+    if (req.body.reviewNotes) post.reviewNotes = req.body.reviewNotes
+    await post.save()
+    if (post.authorId) {
+      await Notification.create({ userId: post.authorId, type: 'approved', message: `Your article "${post.title}" has been approved!`, entityId: post._id })
+    }
+    await logAction(req.user.id, 'APPROVE', 'Blog', post._id.toString(), post.title)
+    res.json({ success: true, data: post })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// PUT /:id/reject  (requestChanges=true sends back to draft)
+router.put('/:id/reject', protect, async (req, res) => {
+  if (!['editor', 'admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Editor or Admin required' })
+  }
+  if (!req.body.rejectionReason?.trim()) {
+    return res.status(422).json({ success: false, message: 'Rejection reason is required' })
+  }
+  try {
+    const post = await Blog.findById(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' })
+    if (post.status !== 'pending_review') {
+      return res.status(400).json({ success: false, message: 'Article must be pending review to reject' })
+    }
+    const requestChanges = !!req.body.requestChanges
+    post.status = requestChanges ? 'draft' : 'rejected'
+    post.reviewedBy = req.user.id
+    post.reviewedAt = new Date()
+    post.rejectionReason = req.body.rejectionReason.trim()
+    if (req.body.reviewNotes) post.reviewNotes = req.body.reviewNotes
+    await post.save()
+    if (post.authorId) {
+      const type = requestChanges ? 'changes_requested' : 'rejected'
+      const msg = requestChanges
+        ? `Changes requested on your article "${post.title}": ${req.body.rejectionReason}`
+        : `Your article "${post.title}" was rejected: ${req.body.rejectionReason}`
+      await Notification.create({ userId: post.authorId, type, message: msg, entityId: post._id })
+    }
+    await logAction(req.user.id, requestChanges ? 'REQUEST_CHANGES' : 'REJECT', 'Blog', post._id.toString(), post.title)
+    res.json({ success: true, data: post })
+  } catch (err) { res.status(500).json({ success: false, message: err.message }) }
+})
+
+// PUT /:id/publish
+router.put('/:id/publish', protect, async (req, res) => {
+  if (!['admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Admin required' })
+  }
+  try {
+    const post = await Blog.findById(req.params.id)
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' })
+    post.status = 'published'
+    post.publishedAt = new Date()
+    await post.save()
+    if (post.authorId) {
+      await Notification.create({ userId: post.authorId, type: 'published', message: `Your article "${post.title}" has been published!`, entityId: post._id })
+    }
+    await logAction(req.user.id, 'PUBLISH', 'Blog', post._id.toString(), post.title)
+    res.json({ success: true, data: post })
   } catch (err) { res.status(500).json({ success: false, message: err.message }) }
 })
 
