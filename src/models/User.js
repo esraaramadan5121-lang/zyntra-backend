@@ -16,6 +16,7 @@ const UserSchema = new mongoose.Schema({
   companyAddress: { type: String },
   companyLogo:    { type: String },
   companyWebsite: { type: String },
+  status:         { type: String, enum: ['active', 'inactive'], default: 'active' },
   loginAttempts:  { type: Number, default: 0 },
   lockUntil:      { type: Date },
   lastLogin:      { type: Date },

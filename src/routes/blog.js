@@ -15,6 +15,7 @@ const blogValidation = [
   body('content').trim().notEmpty().withMessage('Content is required'),
   body('excerpt').optional().trim().isLength({ max: 500 }),
   body('category').optional().trim().isLength({ max: 100 }),
+  body('categoryId').optional(),
   body('status').optional().isIn(BLOG_STATUSES).withMessage('Invalid status'),
   body('author').optional().trim().isLength({ max: 100 }),
   body('metaTitle').optional().trim().isLength({ max: 200 }),
@@ -79,10 +80,10 @@ router.get('/admin/all', protect, async (req, res) => {
 router.post('/', protect, blogValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
-    const { title, content, excerpt, coverImage, category, tags, status, author,
+    const { title, content, excerpt, coverImage, category, categoryId, tags, status, author,
             metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } = req.body
     const post = await Blog.create({
-      title, content, excerpt, coverImage, category, tags, status, author,
+      title, content, excerpt, coverImage, category, categoryId: categoryId || null, tags, status, author,
       metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage,
     })
     await logAction(req.user.id, 'create', 'Blog', post._id.toString(), post.title)
@@ -93,11 +94,11 @@ router.post('/', protect, blogValidation, async (req, res) => {
 router.put('/:id', protect, blogValidation, async (req, res) => {
   if (handleValidation(req, res)) return
   try {
-    const { title, content, excerpt, coverImage, category, tags, status, author,
+    const { title, content, excerpt, coverImage, category, categoryId, tags, status, author,
             metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } = req.body
     const post = await Blog.findByIdAndUpdate(
       req.params.id,
-      { $set: { title, content, excerpt, coverImage, category, tags, status, author,
+      { $set: { title, content, excerpt, coverImage, category, categoryId: categoryId || null, tags, status, author,
                 metaTitle, metaDescription, metaKeywords, canonicalUrl, featuredImage } },
       { new: true, runValidators: true },
     )

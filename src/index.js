@@ -66,6 +66,8 @@ app.use('/api/upload',     require('./routes/upload'))
 app.use('/api/careers',    require('./routes/careers'))
 app.use('/api/search',     require('./routes/search'))
 app.use('/api/settings',   require('./routes/settings'))
+app.use('/api/users',      require('./routes/users'))
+app.use('/api/categories', require('./routes/categories'))
 
 // CRM namespace — contacts, deals, pipeline all under /api/crm
 app.use('/api/crm', require('./routes/crm'))

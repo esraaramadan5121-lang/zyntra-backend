@@ -7,6 +7,7 @@ const BlogSchema = new mongoose.Schema({
   excerpt:         { type: String, default: '' },
   coverImage:      { type: String, default: '' },
   category:        { type: String, default: 'General' },
+  categoryId:      { type: require('mongoose').Schema.Types.ObjectId, ref: 'Category', default: null },
   tags:            [{ type: String }],
   status:          { type: String, enum: ['published', 'draft'], default: 'draft' },
   author:          { type: String, default: 'ZYNTRA Team' },
