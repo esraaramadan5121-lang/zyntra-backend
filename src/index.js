@@ -38,19 +38,31 @@ app.use(rateLimit({
   message: { success: false, message: 'Too many requests, please try again later.' },
 }))
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://zyntra.ltd',
-    'https://www.zyntra.ltd',
-    process.env.CLIENT_URL,
-  ].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}))
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'https://zyntra.ltd',
+  'https://www.zyntra.ltd',
+  process.env.CLIENT_URL,
+].filter(Boolean)
 
-app.options('*', cors())
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}
+
+app.use(cors(corsOptions))
+
+app.options('*', cors(corsOptions))
 app.use(express.json({ limit: '10kb' }))
 app.use(requestLogger)
 
